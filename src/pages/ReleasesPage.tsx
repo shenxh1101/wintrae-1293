@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Upload, Calendar, FileText, CheckCircle2, Circle, Trash2, Edit2, Music2, ExternalLink, Clock, CheckSquare, Image } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Plus, Upload, Calendar, FileText, CheckCircle2, Circle, Trash2, Edit2, Music2, ExternalLink, Clock, CheckSquare, Image, X } from 'lucide-react';
 import { useAppStore, useReleaseTodos } from '@/store/useAppStore';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
@@ -19,10 +19,14 @@ export function ReleasesPage() {
     releaseDate: '',
     copyrightInfo: '',
     isrc: '',
+    coverPath: '',
     platforms: [] as PlatformType[],
   });
 
-  const { releases, songs, selectedReleaseId, setSelectedReleaseId, addRelease, updateRelease, deleteRelease, addReleaseTodo, toggleReleaseTodo, deleteReleaseTodo } = useAppStore();
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const editCoverInputRef = useRef<HTMLInputElement>(null);
+
+  const { releases, songs, releaseTodos, selectedReleaseId, setSelectedReleaseId, addRelease, updateRelease, deleteRelease, addReleaseTodo, toggleReleaseTodo, deleteReleaseTodo } = useAppStore();
   const selectedRelease = releases.find(r => r.id === selectedReleaseId);
   const todos = useReleaseTodos(selectedReleaseId);
 
@@ -33,6 +37,47 @@ export function ReleasesPage() {
     return releases.filter(r => r.status === status);
   };
 
+  const getTodosForRelease = (releaseId: string) => {
+    return releaseTodos.filter(t => t.releaseId === releaseId);
+  };
+
+  const handleCoverSelect = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (isEdit && editingRelease) {
+        setEditingRelease({ ...editingRelease, coverPath: dataUrl });
+      } else {
+        setNewRelease({ ...newRelease, coverPath: dataUrl });
+      }
+    };
+    reader.readAsDataURL(file);
+    
+    e.target.value = '';
+  };
+
+  const handleElectronCoverSelect = async (isEdit: boolean = false) => {
+    if (window.electronAPI) {
+      const result = await window.electronAPI.openImageDialog();
+      if (result) {
+        if (isEdit && editingRelease) {
+          setEditingRelease({ ...editingRelease, coverPath: result });
+        } else {
+          setNewRelease({ ...newRelease, coverPath: result });
+        }
+        return;
+      }
+    }
+    if (isEdit) {
+      editCoverInputRef.current?.click();
+    } else {
+      coverInputRef.current?.click();
+    }
+  };
+
   const handleAddRelease = () => {
     if (!newRelease.title.trim()) return;
     addRelease({
@@ -41,6 +86,7 @@ export function ReleasesPage() {
       releaseDate: newRelease.releaseDate || undefined,
       copyrightInfo: newRelease.copyrightInfo || undefined,
       isrc: newRelease.isrc || undefined,
+      coverPath: newRelease.coverPath || undefined,
     });
     setNewRelease({
       title: '',
@@ -49,6 +95,7 @@ export function ReleasesPage() {
       releaseDate: '',
       copyrightInfo: '',
       isrc: '',
+      coverPath: '',
       platforms: [],
     });
     setIsAddModalOpen(false);
@@ -122,9 +169,9 @@ export function ReleasesPage() {
                 
                 <div className="space-y-2">
                   {getReleasesByStatus(status).map((release) => {
-                    const releaseTodos = useReleaseTodos(release.id);
-                    const releaseCompleted = releaseTodos.filter(t => t.completed).length;
-                    const releaseProgress = releaseTodos.length > 0 ? Math.round((releaseCompleted / releaseTodos.length) * 100) : 0;
+                    const rTodos = getTodosForRelease(release.id);
+                    const rCompleted = rTodos.filter(t => t.completed).length;
+                    const rProgress = rTodos.length > 0 ? Math.round((rCompleted / rTodos.length) * 100) : 0;
                     const daysUntil = release.releaseDate ? getDaysUntil(release.releaseDate) : null;
                     
                     return (
@@ -135,38 +182,50 @@ export function ReleasesPage() {
                           selectedReleaseId === release.id ? 'border-accent-orange/50 ring-1 ring-accent-orange/30' : ''
                         }`}
                       >
-                        <div className="flex items-start justify-between mb-3">
+                        <div className="flex gap-3 mb-3">
+                          {release.coverPath ? (
+                            <div className="w-16 h-16 bg-studio-900 rounded-lg overflow-hidden flex-shrink-0">
+                              <img src={release.coverPath} alt={release.title} className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-16 h-16 bg-studio-900 rounded-lg flex items-center justify-center flex-shrink-0 border border-studio-700">
+                              <Image className="w-6 h-6 text-studio-600" />
+                            </div>
+                          )}
+                          
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-studio-100 truncate">{release.title}</h3>
+                            <div className="flex items-start justify-between">
+                              <h3 className="font-semibold text-studio-100 truncate">{release.title}</h3>
+                              <div className="flex gap-0.5 ml-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingRelease(release);
+                                    setIsEditModalOpen(true);
+                                  }}
+                                  className="p-1 rounded hover:bg-studio-700 text-studio-400 hover:text-studio-200 transition-colors"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`确定删除「${release.title}」吗？`)) {
+                                      deleteRelease(release.id);
+                                    }
+                                  }}
+                                  className="p-1 rounded hover:bg-red-500/20 text-studio-400 hover:text-red-400 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
                             {release.songId && (
                               <div className="text-xs text-studio-500 flex items-center gap-1 mt-0.5">
                                 <Music2 className="w-3 h-3" />
                                 {songs.find(s => s.id === release.songId)?.title || '未知作品'}
                               </div>
                             )}
-                          </div>
-                          <div className="flex gap-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingRelease(release);
-                                setIsEditModalOpen(true);
-                              }}
-                              className="p-1 rounded hover:bg-studio-700 text-studio-400 hover:text-studio-200 transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm(`确定删除「${release.title}」吗？`)) {
-                                  deleteRelease(release.id);
-                                }
-                              }}
-                              className="p-1 rounded hover:bg-red-500/20 text-studio-400 hover:text-red-400 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
                           </div>
                         </div>
                         
@@ -201,19 +260,19 @@ export function ReleasesPage() {
                           </div>
                         )}
                         
-                        {releaseTodos.length > 0 && (
+                        {rTodos.length > 0 && (
                           <div>
                             <div className="flex items-center justify-between text-xs text-studio-500 mb-1">
                               <span className="flex items-center gap-1">
                                 <CheckSquare className="w-3 h-3" />
-                                {releaseCompleted}/{releaseTodos.length} 待办
+                                {rCompleted}/{rTodos.length} 待办
                               </span>
-                              <span>{releaseProgress}%</span>
+                              <span>{rProgress}%</span>
                             </div>
                             <div className="h-1.5 bg-studio-700 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-accent-orange rounded-full transition-all duration-300"
-                                style={{ width: `${releaseProgress}%` }}
+                                style={{ width: `${rProgress}%` }}
                               />
                             </div>
                           </div>
@@ -221,6 +280,12 @@ export function ReleasesPage() {
                       </div>
                     );
                   })}
+                  
+                  {getReleasesByStatus(status).length === 0 && (
+                    <div className="text-center py-6 text-studio-500 text-xs">
+                      暂无{RELEASE_STATUS_LABELS[status]}项目
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -392,8 +457,55 @@ export function ReleasesPage() {
         </div>
       )}
       
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handleCoverSelect(e, false)}
+      />
+      <input
+        ref={editCoverInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handleCoverSelect(e, true)}
+      />
+      
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="新建发布" size="lg">
         <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-studio-200 mb-2">封面图片</label>
+            <div className="flex gap-4">
+              {newRelease.coverPath ? (
+                <div className="relative w-32 h-32 bg-studio-900 rounded-lg overflow-hidden border border-studio-700">
+                  <img src={newRelease.coverPath} alt="封面预览" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setNewRelease({ ...newRelease, coverPath: '' })}
+                    className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white hover:bg-black/80"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-32 h-32 bg-studio-900 rounded-lg flex items-center justify-center border-2 border-dashed border-studio-700">
+                  <Image className="w-8 h-8 text-studio-600" />
+                </div>
+              )}
+              <div className="flex-1 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => handleElectronCoverSelect(false)}
+                  className="btn btn-secondary text-sm"
+                >
+                  <Upload className="w-4 h-4" />
+                  选择封面
+                </button>
+              </div>
+            </div>
+          </div>
+          
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-studio-200 mb-1.5">标题 *</label>
@@ -501,6 +613,38 @@ export function ReleasesPage() {
       <Modal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setEditingRelease(null); }} title="编辑发布" size="lg">
         {editingRelease && (
           <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-studio-200 mb-2">封面图片</label>
+              <div className="flex gap-4">
+                {editingRelease.coverPath ? (
+                  <div className="relative w-32 h-32 bg-studio-900 rounded-lg overflow-hidden border border-studio-700">
+                    <img src={editingRelease.coverPath} alt="封面预览" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setEditingRelease({ ...editingRelease, coverPath: undefined })}
+                      className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white hover:bg-black/80"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-32 h-32 bg-studio-900 rounded-lg flex items-center justify-center border-2 border-dashed border-studio-700">
+                    <Image className="w-8 h-8 text-studio-600" />
+                  </div>
+                )}
+                <div className="flex-1 flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => handleElectronCoverSelect(true)}
+                    className="btn btn-secondary text-sm"
+                  >
+                    <Upload className="w-4 h-4" />
+                    更换封面
+                  </button>
+                </div>
+              </div>
+            </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-studio-200 mb-1.5">标题</label>

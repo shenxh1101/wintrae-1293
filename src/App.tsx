@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { LibraryPage } from '@/pages/LibraryPage';
 import { RehearsalsPage } from '@/pages/RehearsalsPage';
@@ -7,19 +7,23 @@ import { ReleasesPage } from '@/pages/ReleasesPage';
 import { ContactsPage } from '@/pages/ContactsPage';
 import { useAppStore } from '@/store/useAppStore';
 import { TabType, TAB_LABELS } from '@/types';
+import { hasStoredData } from '@/utils/storage';
 
 function App() {
-  const { activeTab, loadFromStorage, initWithMockData, songs } = useAppStore();
+  const { activeTab, loadFromStorage, initWithMockData } = useAppStore();
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
+    if (initialized) return;
+    
     loadFromStorage();
-  }, [loadFromStorage]);
-
-  useEffect(() => {
-    if (songs.length === 0) {
+    
+    if (!hasStoredData()) {
       initWithMockData();
     }
-  }, [songs.length, initWithMockData]);
+    
+    setInitialized(true);
+  }, [initialized, loadFromStorage, initWithMockData]);
 
   const renderPage = () => {
     switch (activeTab) {

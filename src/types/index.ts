@@ -48,6 +48,7 @@ export interface Rehearsal {
   endTime: string;
   location: string;
   notes?: string;
+  memberIds?: string[];
 }
 
 export interface RehearsalTrack {

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Plus, ChevronLeft, ChevronRight, Clock, MapPin, Users, Music, GripVertical, Trash2, Edit2, Target } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Clock, MapPin, Users, Music, Trash2, Edit2, Target, User, UserCheck } from 'lucide-react';
 import { useAppStore, useRehearsalTracks } from '@/store/useAppStore';
 import { Modal } from '@/components/ui/Modal';
-import { Rehearsal } from '@/types';
+import { Rehearsal, CONTACT_CATEGORY_LABELS } from '@/types';
 import { getDaysInMonth, getFirstDayOfMonth, getMonthName, isSameDay, isToday, formatDate, formatTime, getDateString } from '@/utils/date';
 
 export function RehearsalsPage() {
@@ -16,11 +16,12 @@ export function RehearsalsPage() {
     endTime: '22:00',
     location: '',
     notes: '',
+    memberIds: [] as string[],
   });
   const [newTrackSongId, setNewTrackSongId] = useState('');
   const [newTrackFocus, setNewTrackFocus] = useState('');
 
-  const { rehearsals, songs, selectedRehearsalId, setSelectedRehearsalId, addRehearsal, updateRehearsal, deleteRehearsal, addRehearsalTrack, updateRehearsalTrack, deleteRehearsalTrack } = useAppStore();
+  const { rehearsals, songs, contacts, selectedRehearsalId, setSelectedRehearsalId, addRehearsal, updateRehearsal, deleteRehearsal, addRehearsalTrack, updateRehearsalTrack, deleteRehearsalTrack } = useAppStore();
   const selectedRehearsal = rehearsals.find(r => r.id === selectedRehearsalId);
   const tracks = useRehearsalTracks(selectedRehearsalId);
 
@@ -43,6 +44,8 @@ export function RehearsalsPage() {
     return rehearsals.filter(r => r.date === dateStr);
   };
 
+  const getMember = (memberId: string) => contacts.find(c => c.id === memberId);
+
   const handlePrevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
   };
@@ -59,10 +62,33 @@ export function RehearsalsPage() {
     }
   };
 
+  const toggleNewMember = (memberId: string) => {
+    setNewRehearsal(prev => ({
+      ...prev,
+      memberIds: prev.memberIds.includes(memberId)
+        ? prev.memberIds.filter(id => id !== memberId)
+        : [...prev.memberIds, memberId]
+    }));
+  };
+
+  const toggleEditMember = (memberId: string) => {
+    if (!editingRehearsal) return;
+    const currentMembers = editingRehearsal.memberIds || [];
+    setEditingRehearsal({
+      ...editingRehearsal,
+      memberIds: currentMembers.includes(memberId)
+        ? currentMembers.filter(id => id !== memberId)
+        : [...currentMembers, memberId]
+    });
+  };
+
   const handleAddRehearsal = () => {
     if (!newRehearsal.date || !newRehearsal.location) return;
-    addRehearsal(newRehearsal);
-    setNewRehearsal({ date: getDateString(new Date()), startTime: '19:00', endTime: '22:00', location: '', notes: '' });
+    addRehearsal({
+      ...newRehearsal,
+      memberIds: newRehearsal.memberIds.length > 0 ? newRehearsal.memberIds : undefined,
+    });
+    setNewRehearsal({ date: getDateString(new Date()), startTime: '19:00', endTime: '22:00', location: '', notes: '', memberIds: [] });
     setIsAddModalOpen(false);
   };
 
@@ -236,6 +262,32 @@ export function RehearsalsPage() {
               <MapPin className="w-4 h-4 text-accent-indigo" />
               {selectedRehearsal.location}
             </div>
+
+            {selectedRehearsal.memberIds && selectedRehearsal.memberIds.length > 0 && (
+              <div className="mb-2">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-studio-400 mb-2">
+                  <Users className="w-3.5 h-3.5" />
+                  参与成员 ({selectedRehearsal.memberIds.length})
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedRehearsal.memberIds.map((memberId) => {
+                    const member = getMember(memberId);
+                    if (!member) return null;
+                    return (
+                      <div
+                        key={memberId}
+                        className="flex items-center gap-1.5 px-2 py-1 bg-studio-800 border border-studio-700 rounded-lg"
+                      >
+                        <div className="w-5 h-5 rounded-full bg-accent-orange/20 flex items-center justify-center">
+                          <User className="w-3 h-3 text-accent-orange" />
+                        </div>
+                        <span className="text-xs text-studio-200">{member.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             
             {selectedRehearsal.notes && (
               <p className="text-sm text-studio-400 bg-studio-800 p-2 rounded-lg border border-studio-700">
@@ -385,13 +437,55 @@ export function RehearsalsPage() {
               placeholder="如: 蜂巢排练室 B203"
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-studio-200 mb-2 flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-accent-orange" />
+              参与成员
+            </label>
+            {contacts.length === 0 ? (
+              <p className="text-xs text-studio-500 p-3 bg-studio-800 rounded-lg border border-studio-700">
+                暂无联系人，请先在"联系人"页面添加乐手信息
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
+                {contacts.map((contact) => {
+                  const isSelected = newRehearsal.memberIds.includes(contact.id);
+                  return (
+                    <button
+                      key={contact.id}
+                      type="button"
+                      onClick={() => toggleNewMember(contact.id)}
+                      className={`flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${
+                        isSelected
+                          ? 'bg-accent-orange/15 border-accent-orange/50 text-studio-100'
+                          : 'bg-studio-800 border-studio-700 text-studio-300 hover:border-studio-600'
+                      }`}
+                    >
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        isSelected ? 'bg-accent-orange text-white' : 'bg-studio-700 text-studio-400'
+                      }`}>
+                        {isSelected ? <UserCheck className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium truncate">{contact.name}</p>
+                        <p className="text-[10px] text-studio-500 truncate">
+                          {CONTACT_CATEGORY_LABELS[contact.category]}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           
           <div>
             <label className="block text-sm font-medium text-studio-200 mb-1.5">备注</label>
             <textarea
               value={newRehearsal.notes}
               onChange={(e) => setNewRehearsal({ ...newRehearsal, notes: e.target.value })}
-              className="textarea h-24"
+              className="textarea h-20"
               placeholder="排练注意事项..."
             />
           </div>
@@ -451,13 +545,55 @@ export function RehearsalsPage() {
                 className="input"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-studio-200 mb-2 flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-accent-orange" />
+                参与成员
+              </label>
+              {contacts.length === 0 ? (
+                <p className="text-xs text-studio-500 p-3 bg-studio-800 rounded-lg border border-studio-700">
+                  暂无联系人，请先在"联系人"页面添加乐手信息
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
+                  {contacts.map((contact) => {
+                    const isSelected = (editingRehearsal.memberIds || []).includes(contact.id);
+                    return (
+                      <button
+                        key={contact.id}
+                        type="button"
+                        onClick={() => toggleEditMember(contact.id)}
+                        className={`flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${
+                          isSelected
+                            ? 'bg-accent-orange/15 border-accent-orange/50 text-studio-100'
+                            : 'bg-studio-800 border-studio-700 text-studio-300 hover:border-studio-600'
+                        }`}
+                      >
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          isSelected ? 'bg-accent-orange text-white' : 'bg-studio-700 text-studio-400'
+                        }`}>
+                          {isSelected ? <UserCheck className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium truncate">{contact.name}</p>
+                          <p className="text-[10px] text-studio-500 truncate">
+                            {CONTACT_CATEGORY_LABELS[contact.category]}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             
             <div>
               <label className="block text-sm font-medium text-studio-200 mb-1.5">备注</label>
               <textarea
                 value={editingRehearsal.notes || ''}
                 onChange={(e) => setEditingRehearsal({ ...editingRehearsal, notes: e.target.value })}
-                className="textarea h-24"
+                className="textarea h-20"
               />
             </div>
             

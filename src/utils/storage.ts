@@ -48,3 +48,14 @@ export function formatDuration(seconds?: number): string {
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
+
+export function hasStoredData(): boolean {
+  const data = loadFromStorage();
+  if (!data) return false;
+  return (
+    data.songs.length > 0 ||
+    data.contacts.length > 0 ||
+    data.rehearsals.length > 0 ||
+    data.releases.length > 0
+  );
+}
