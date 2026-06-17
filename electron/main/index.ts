@@ -77,7 +77,12 @@ ipcMain.handle('dialog:openImage', async () => {
     ],
   })
   if (!result.canceled && result.filePaths.length > 0) {
-    return result.filePaths[0]
+    const filePath = result.filePaths[0]
+    const ext = path.extname(filePath).toLowerCase().replace('.', '')
+    const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/png'
+    const buffer = fs.readFileSync(filePath)
+    const base64 = buffer.toString('base64')
+    return `data:${mimeType};base64,${base64}`
   }
   return null
 })

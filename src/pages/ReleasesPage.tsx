@@ -43,32 +43,35 @@ export function ReleasesPage() {
 
   const handleCoverSelect = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
-      if (isEdit && editingRelease) {
-        setEditingRelease({ ...editingRelease, coverPath: dataUrl });
+      if (isEdit) {
+        setEditingRelease((prev) => (prev ? { ...prev, coverPath: dataUrl } : null));
       } else {
-        setNewRelease({ ...newRelease, coverPath: dataUrl });
+        setNewRelease((prev) => ({ ...prev, coverPath: dataUrl }));
       }
     };
     reader.readAsDataURL(file);
-    
-    e.target.value = '';
   };
 
   const handleElectronCoverSelect = async (isEdit: boolean = false) => {
-    if (window.electronAPI) {
-      const result = await window.electronAPI.openImageDialog();
-      if (result) {
-        if (isEdit && editingRelease) {
-          setEditingRelease({ ...editingRelease, coverPath: result });
-        } else {
-          setNewRelease({ ...newRelease, coverPath: result });
+    if (window.electronAPI && typeof window.electronAPI.openImageDialog === 'function') {
+      try {
+        const result = await window.electronAPI.openImageDialog();
+        if (result) {
+          if (isEdit) {
+            setEditingRelease((prev) => (prev ? { ...prev, coverPath: result } : null));
+          } else {
+            setNewRelease((prev) => ({ ...prev, coverPath: result }));
+          }
+          return;
         }
-        return;
+      } catch (err) {
+        console.warn('Electron image dialog failed, falling back to file input:', err);
       }
     }
     if (isEdit) {
@@ -482,7 +485,7 @@ export function ReleasesPage() {
                   <img src={newRelease.coverPath} alt="封面预览" className="w-full h-full object-cover" />
                   <button
                     type="button"
-                    onClick={() => setNewRelease({ ...newRelease, coverPath: '' })}
+                    onClick={() => setNewRelease((prev) => ({ ...prev, coverPath: '' }))}
                     className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white hover:bg-black/80"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -621,7 +624,7 @@ export function ReleasesPage() {
                     <img src={editingRelease.coverPath} alt="封面预览" className="w-full h-full object-cover" />
                     <button
                       type="button"
-                      onClick={() => setEditingRelease({ ...editingRelease, coverPath: undefined })}
+                      onClick={() => setEditingRelease((prev) => prev ? { ...prev, coverPath: undefined } : null)}
                       className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white hover:bg-black/80"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -651,7 +654,7 @@ export function ReleasesPage() {
                 <input
                   type="text"
                   value={editingRelease.title}
-                  onChange={(e) => setEditingRelease({ ...editingRelease, title: e.target.value })}
+                  onChange={(e) => setEditingRelease((prev) => prev ? { ...prev, title: e.target.value } : null)}
                   className="input"
                 />
               </div>
@@ -659,7 +662,7 @@ export function ReleasesPage() {
                 <label className="block text-sm font-medium text-studio-200 mb-1.5">关联作品</label>
                 <select
                   value={editingRelease.songId || ''}
-                  onChange={(e) => setEditingRelease({ ...editingRelease, songId: e.target.value || undefined })}
+                  onChange={(e) => setEditingRelease((prev) => prev ? { ...prev, songId: e.target.value || undefined } : null)}
                   className="select"
                 >
                   <option value="">选择作品...</option>
@@ -675,7 +678,7 @@ export function ReleasesPage() {
                 <label className="block text-sm font-medium text-studio-200 mb-1.5">状态</label>
                 <select
                   value={editingRelease.status}
-                  onChange={(e) => setEditingRelease({ ...editingRelease, status: e.target.value as ReleaseStatus })}
+                  onChange={(e) => setEditingRelease((prev) => prev ? { ...prev, status: e.target.value as ReleaseStatus } : null)}
                   className="select"
                 >
                   {statuses.map((status) => (
@@ -688,7 +691,7 @@ export function ReleasesPage() {
                 <input
                   type="date"
                   value={editingRelease.releaseDate || ''}
-                  onChange={(e) => setEditingRelease({ ...editingRelease, releaseDate: e.target.value || undefined })}
+                  onChange={(e) => setEditingRelease((prev) => prev ? { ...prev, releaseDate: e.target.value || undefined } : null)}
                   className="input"
                 />
               </div>
@@ -700,7 +703,7 @@ export function ReleasesPage() {
                 <input
                   type="text"
                   value={editingRelease.isrc || ''}
-                  onChange={(e) => setEditingRelease({ ...editingRelease, isrc: e.target.value || undefined })}
+                  onChange={(e) => setEditingRelease((prev) => prev ? { ...prev, isrc: e.target.value || undefined } : null)}
                   className="input"
                 />
               </div>
@@ -709,7 +712,7 @@ export function ReleasesPage() {
                 <input
                   type="text"
                   value={editingRelease.copyrightInfo || ''}
-                  onChange={(e) => setEditingRelease({ ...editingRelease, copyrightInfo: e.target.value || undefined })}
+                  onChange={(e) => setEditingRelease((prev) => prev ? { ...prev, copyrightInfo: e.target.value || undefined } : null)}
                   className="input"
                 />
               </div>
